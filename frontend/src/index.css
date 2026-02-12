@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+::-webkit-scrollbar {
+  display: none;
+}
+@layer components {
+  .ant-image-mask {
+    @apply !bg-transparent;
+  }
+
+ 
+  /* Убираем рамку / тень при hover */
+  .ant-image {
+    @apply !shadow-none;
+  }
+
+  .ant-image:hover {
+    @apply !shadow-none;
+  }
+
+  /* Убираем возможный outline при фокусе */
+  .ant-image img {
+    @apply outline-none ring-0;
+  }
+}
+
+
