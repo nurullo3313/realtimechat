@@ -1,36 +1,67 @@
-import React, { useState, useEffect } from "react";
-import { Form, Input, Button, Upload } from "antd";
-import { MessageOutlined, UploadOutlined, LogoutOutlined, LeftOutlined } from "@ant-design/icons";
+import React, {useState, useEffect, useRef } from"react";
+import { Form, Input, Button, Upload, Image } from "antd";
+import {
+  MessageOutlined,
+  UploadOutlined,
+  LogoutOutlined,
+  LeftOutlined,
+} from "@ant-design/icons";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { editProfile, getMe } from "../redux/slices/authSlice";
+import SkeletonProfile from "../components/SkeletonProfile";
+import assets from "../assets/assets";
+import { toast } from "react-hot-toast";
 
 export default function Profile() {
-  // Данные профиля (можно подключить сервер)
-  const [user, setUser] = useState({
-    nickname: "Нурулло",
-    email: "nurullo@example.com",
-    avatar: "https://cdn-icons-png.flaticon.com/512/149/149071.png",
-    bio: "",
-  });
+  const { user, loading, status } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  const [form] = Form.useForm();
 
-  const [imageUrl, setImageUrl] = useState(user.avatar);
+  const [imageFile, setImageFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  console.log(user)
 
+  useEffect(() => {
+    dispatch(getMe());
+  }, [dispatch]);
 
-  const handleSave = (values) => {
-    setUser({
-      ...user,
-      nickname: values.nickname,
-      email: values.email,
-      avatar: imageUrl,
-      bio: values.bio,
-    });
-    console.log("Updated profile:", {
-      ...user,
-      nickname: values.nickname,
-      email: values.email,
-      avatar: imageUrl,
-      bio: values.bio,
-    });
+  useEffect(() => {
+  if (user) {
+      form.setFieldsValue({
+       nickname: user.username,
+      email: user.email,
+       bio: user.bio,
+      });
+     }
+  }, [user]);
+
+ // Handle status separately with ref to prevent infinite loop
+ const prevStatusRef = useRef(null);
+ 
+ useEffect(() => {
+ if (status && status !== prevStatusRef.current && typeof status === 'string') {
+     toast.success(status);
+     prevStatusRef.current = status;
+    }
+  }, [status]);
+
+  const saveEdit = async (values) => {
+    try {
+      await dispatch(
+        editProfile({
+          username: values.nickname,
+          email: values.email,
+          bio: values.bio,
+          profilImage: imageFile,
+        }),
+      ).unwrap();
+
+      // Optionally show success message or redirect
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    }
   };
 
   return (
@@ -46,10 +77,9 @@ export default function Profile() {
             icon={<LeftOutlined />}
             shape="circle"
             className="!bg-white/10 !text-white/80 hover:!bg-white/20"
-            aria-label="Назад"
           />
         </Link>
-        {/* HEADER */}
+
         <div className="text-center mb-6">
           <div className="text-4xl mb-2 flex justify-center">
             <MessageOutlined />
@@ -57,101 +87,77 @@ export default function Profile() {
           <h1 className="text-2xl font-semibold">Профиль</h1>
         </div>
 
-        <Form
-          layout="vertical"
-          initialValues={{
-            nickname: user.nickname,
-            email: user.email,
-            bio: user.bio,
-          }}
-          onFinish={handleSave}
-        >
-          {/* AVATAR */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="flex justify-center items-center w-24 h-24 rounded-full overflow-hidden border-2 border-white/30 mb-3">
-              <img
-                src={imageUrl}
-                alt="avatar"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <Upload
-              showUploadList={false}
-              beforeUpload={() => false}
-              onChange={(info) => {
-                const file = (info && info.file && info.file.originFileObj) || info.file;
-                if (file) {
-                  if (imageUrl) {
-                    try {
-                      URL.revokeObjectURL(imageUrl);
-                    } catch (e) {}
+        {loading ? (
+          <SkeletonProfile />
+        ) : (
+          <Form form={form} layout="vertical" onFinish={saveEdit}>
+            {/* AVATAR */}
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/30 mb-3">
+                <img
+                  src={
+                    preview ||
+                    user?.profilImage
+                      ? 
+                      `http://localhost:3313${user?.profilImage}` 
+                      : 
+                      "https://cdn-icons-png.flaticon.com/512/149/149071.png"
+                      
                   }
-                  const previewUrl = URL.createObjectURL(file);
-                  setImageUrl(previewUrl);
-                }
-              }}
-            >
-              <Button
-                icon={<UploadOutlined />}
-                className="!bg-white !text-violet-700 !border-none hover:!bg-white/90"
+                  
+                  alt="avatar"
+                  className="w-auto h-full object-cover"
+                />
+              </div>
+
+              {console.log(preview)}
+
+              <Upload
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  setImageFile(file);
+                  setPreview(URL.createObjectURL(file));
+                  return false;
+                }}
               >
-                Изменить фото
-              </Button>
-            </Upload>
-          </div>
+                <Button
+                  icon={<UploadOutlined />}
+                  className="!bg-white !text-violet-700 !border-none"
+                >
+                  Изменить фото
+                </Button>
+              </Upload>
+            </div>
 
-          {/* NICKNAME */}
-          <Form.Item
-            label="Никнейм"
-            name="nickname"
-            rules={[{ required: true, message: "Введите никнейм" }]}
-          >
-            <Input
-              className="!bg-white/10 !text-white placeholder:!text-white/60 !border-white/30 rounded-xl py-2"
-            />
-          </Form.Item>
+            <Form.Item
+              label="Никнейм"
+              name="nickname"
+              rules={[{ required: true }]}
+            >
+              <Input className="!bg-white/10 !text-white" />
+            </Form.Item>
 
-          {/* EMAIL */}
-          <Form.Item
-            label="Email"
-            name="email"
-            rules={[
-              { required: true, message: "Введите email" },
-              { type: "email", message: "Введите корректный email" },
-            ]}
-          >
-            <Input
-              className="!bg-white/10 !text-white placeholder:!text-white/60 !border-white/30 rounded-xl py-2"
-            />
-          </Form.Item>
+            <Form.Item
+              label="Email"
+              name="email"
+              rules={[{ required: true, type: "email" }]}
+            >
+              <Input className="!bg-white/10 !text-white" />
+            </Form.Item>
 
-          {/* BIO */}
-          <Form.Item label="Био" name="bio">
-            <Input.TextArea
-              rows={4}
-              placeholder="Расскажите немного о себе"
-              className="!bg-white/10 !text-white placeholder:!text-white/60 !border-white/30 rounded-xl py-2"
-            />
-          </Form.Item>
+            <Form.Item label="Био" name="bio">
+              <Input.TextArea rows={4} className="!bg-white/10 !text-white" />
+            </Form.Item>
 
-          {/* BUTTONS */}
-          <div className="mt-4 flex flex-col gap-4">
             <Button
               htmlType="submit"
               block
-              className="!bg-white !text-violet-700 !border-none font-semibold py-3 rounded-xl hover:!bg-white/90"
+              className="!bg-white !text-violet-700 font-semibold"
             >
               Сохранить
             </Button>
-            <Button
-              icon={<LogoutOutlined />}
-              block
-              className="!bg-white/20 !text-red-500 !border-none font-semibold py-3 rounded-xl hover:!bg-white/30"
-            >
-              Выйти
-            </Button>
-          </div>
-        </Form>
+          </Form>
+        )}
       </motion.div>
     </div>
   );

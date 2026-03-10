@@ -1,7 +1,9 @@
 import Messages from "../models/Messages.js";
 import User from "../models/User.js";
-import cloudinary from "../utils/cloudinary.js";
 import { io , userSocketMap } from "../index.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from 'url';
 
 export const userForCaht = async (req, res) => {
   try {
@@ -95,15 +97,32 @@ export const markMessageAsSeen = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
     try {
-
-      const {text, image} = req.body
+      const {text} = req.body
       const receiverId = req.params.id
       const senderId = req.user._id
-      let imageUrl
-      if(image){
-        const uploadResponse =  await cloudinary.uploader.upload(image)
-        imageUrl = uploadResponse.secure_url
+      let imageUrl = null
+      
+      // Handle file upload if present
+      if (req.file) {
+        // Get the directory name properly for ES modules
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+        
+        // Create a public uploads directory
+        const publicUploadsDir = path.join(__dirname, '../../public/uploads');
+        if (!fs.existsSync(publicUploadsDir)) {
+          fs.mkdirSync(publicUploadsDir, { recursive: true });
+        }
+        
+        // Move file to public uploads directory
+        const fileName = `${Date.now()}-${req.file.originalname}`;
+        const destinationPath = path.join(publicUploadsDir, fileName);
+        fs.renameSync(req.file.path, destinationPath);
+        
+        // Create URL accessible from frontend
+        imageUrl = `/uploads/${fileName}`;
       }
+      
       const newMessage = await Messages.create({
         text, 
         image: imageUrl,
